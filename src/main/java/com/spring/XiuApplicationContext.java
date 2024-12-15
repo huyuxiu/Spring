@@ -6,7 +6,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class XiuApplicationContext {
@@ -15,6 +17,8 @@ public class XiuApplicationContext {
     private ConcurrentHashMap<String,Object> singletonObjects = new ConcurrentHashMap<>();
 
     private ConcurrentHashMap<String,BeanDefinition> beanDefinitionMap  = new ConcurrentHashMap<>();
+
+    private List<BeanPostProcesser> beanPostProcesserList = new ArrayList<>();
     public XiuApplicationContext(Class configClass) {
         this.configClass = configClass;
 
@@ -52,7 +56,34 @@ public class XiuApplicationContext {
                 ((BeanNameAware) instance).setBeanName(beanName);
             }
 
+            for (BeanPostProcesser beanPostProcesser : beanPostProcesserList) {
+                //初始化前的操作
+                try {
+                    instance = beanPostProcesser.postProcessBeforeInitialization(instance, beanName);
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            
             // 初始化
+            if(instance instanceof InitializingBean){
+                try {
+                    ((InitializingBean) instance).afterPropertiesSet();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            for (BeanPostProcesser beanPostProcesser : beanPostProcesserList) {
+                //初始化后的操作
+                try {
+                    instance = beanPostProcesser.postProcessAfterInitialization(instance, beanName);
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            //BeanPostProcesser
+
 
             return instance;
         } catch (InstantiationException e) {
@@ -94,6 +125,14 @@ public class XiuApplicationContext {
                         //表示当前类是一个Bean
                         //解析类，判断当前bean是单例bean，还是prototype的bean
                         //BeanDefinition
+
+                        if(BeanPostProcesser.class.isAssignableFrom(clazz)){
+                            //实现了BeanPostProcessor
+                            BeanPostProcesser beanPostProcesser  = (BeanPostProcesser) clazz.getDeclaredConstructor().newInstance();
+                            beanPostProcesserList.add(beanPostProcesser);
+
+                        }
+
                         Component componentAnnotation = clazz.getDeclaredAnnotation(Component.class);
                         String beanName = componentAnnotation.value();
 
