@@ -2,6 +2,7 @@ package com.spring;
 
 import java.io.File;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
@@ -25,16 +26,33 @@ public class XiuApplicationContext {
             String beanName = keyIterator.next();
             BeanDefinition beanDefinition = beanDefinitionMap.get(beanName);
             if(beanDefinition.getScope().equals("singleton")) {
-                Object bean = createBean(beanDefinition);//单例bean
+                Object bean = createBean(beanName,beanDefinition);//单例bean
                 singletonObjects.put(beanName,bean);
             }
         }
     }
 
-    public Object createBean(BeanDefinition beanDefinition) {
+    public Object createBean(String beanName, BeanDefinition beanDefinition) {
         Class clazz = beanDefinition.getClazz();
         try {
             Object instance = clazz.getDeclaredConstructor().newInstance();
+            //依赖注入
+            for (Field declaredField : clazz.getDeclaredFields()) {
+                if(declaredField.isAnnotationPresent(Autowired.class)) {
+                    // 属性有Autowired注解
+                    Object Bean = getBean(declaredField.getName());
+                    declaredField.setAccessible(true);
+                    declaredField.set(instance,Bean);
+                }
+            }
+
+            //Aware 回调
+            if(instance instanceof BeanNameAware){
+                //instance 实现了BeanNameAware接口
+                ((BeanNameAware) instance).setBeanName(beanName);
+            }
+
+            // 初始化
 
             return instance;
         } catch (InstantiationException e) {
@@ -105,7 +123,7 @@ public class XiuApplicationContext {
                 return singletonObjects.get(beanName);
             } else{
                 // 创建Bean对象
-                Object bean = createBean(beanDefinition);
+                Object bean = createBean(beanName,beanDefinition);
                 return bean;
             }
         }else{
