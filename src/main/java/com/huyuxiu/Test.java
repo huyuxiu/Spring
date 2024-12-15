@@ -1,6 +1,7 @@
 package com.huyuxiu;
 
 import com.huyuxiu.service.UserService;
+import com.huyuxiu.service.UserServiceImpl;
 import com.spring.XiuApplicationContext;
 
 public class Test {
